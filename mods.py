@@ -33,6 +33,28 @@ class RedditWatcher:
             await self.getCurrentPost()
             await asyncio.sleep(15)
 
+    async def correctImageKeys(self, apiDict: dict) -> str:
+        '''
+        Makes sure to get the right thumbnail.
+        It is shit but it works :trollface:
+        '''
+        def lol(key, url):
+            try: to = apiDict[key]
+            except: return False
+            else:
+                if to.startswith(url):
+                    return to
+        keys = {
+            "url": "https://i.redd.it",
+            "url_overriden_by_dest": "https://i.imgur.com",
+            "thumbnail": "https://b.thumbs.redditmedia.com"
+        }
+        
+        for k, v in keys.items():
+            if key := lol(k, v):
+                return key 
+
+
     async def getCurrentPost(self):
         with open(self.postFileName, "r+") as f:
             content = f.read()
@@ -41,7 +63,8 @@ class RedditWatcher:
                 key_code = request["data"]["children"][0]["data"]
                 ts = datetime.fromtimestamp(key_code["created_utc"], tz=timezone.utc)
 
-                if key_code["id"] == content: return # Post already posted. 
+                if key_code["id"] == content:
+                    return # Post already posted. 
 
                 if self.type == "u":
                     body = re.compile(".+?(?=\\n)")       #
@@ -66,10 +89,8 @@ class RedditWatcher:
                         timestamp=ts,
                     )
 
-                    if key_code["url"].startswith("https://i.redd.it"):
-                        embed.set_image(key_code["url"])
-                    elif key_code["url_overridden_by_dest"].startswith("https://i.imgur.com"):
-                        embed.set_image(key_code["url_overridden_by_dest"])
+                    if key := await self.correctImageKeys(key_code):
+                        embed.set_image(key)
 
                 f.seek(0)
                 f.write(key_code["id"])
