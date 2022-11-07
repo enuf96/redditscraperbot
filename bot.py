@@ -102,8 +102,9 @@ async def on_stop(event):
     try:
         redditTask.cancel()
         redditItTask.cancel()
-    except:
-        pass
+
+    except NameError as e:
+        print(e)
 
     statusupdate_.cancel()
 

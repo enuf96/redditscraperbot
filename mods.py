@@ -12,7 +12,7 @@ class InvalidRedditType(Exception):
     pass
 
 class RedditWatcher:
-    def __init__(self, url, postFileName, bot: hikari.GatewayBot):
+    def __init__(self, url: str, postFileName: str, bot: hikari.GatewayBot):
         self.postFileName = "ids/" + postFileName
         self.url = url
         self.bot = bot
@@ -26,24 +26,18 @@ class RedditWatcher:
             raise InvalidRedditType("The URL is not recognised as a subreddit or an user. Make sure the URL is from the api.")
         
         if not exists(self.postFileName):
-            with open(self.postFileName, "w") as f: f.write("")
+            with open(self.postFileName, "w") as f:
+                f.write("")
+
 
     async def runner(self):
         while True:
             await self.getCurrentPost()
             await asyncio.sleep(15)
 
+
     async def correctImageKeys(self, apiDict: dict) -> str:
-        '''
-        Makes sure to get the right thumbnail.
-        It is shit but it works :trollface:
-        '''
-        def lol(key, url):
-            try: to = apiDict[key]
-            except: return False
-            else:
-                if to.startswith(url):
-                    return to
+        '''Makes sure to get the right thumbnail.'''
         keys = {
             "url": "https://i.redd.it",
             "url_overriden_by_dest": "https://i.imgur.com",
@@ -51,8 +45,9 @@ class RedditWatcher:
         }
         
         for k, v in keys.items():
-            if key := lol(k, v):
-                return key 
+            key = apiDict.get(k)
+            if key and key.startswith(v):
+                return key
 
 
     async def getCurrentPost(self):
@@ -101,21 +96,20 @@ class RedditWatcher:
                 print("Exception:\n\n" + traceback.format_exc())
                 await asyncio.sleep(5)
     
-    async def sendNewPost(self, embed):
+
+    async def sendNewPost(self, embed: hikari.embeds.Embed):
         reload(message_channels)
         for channel in message_channels.channels:
             try:
                 await self.bot.rest.create_message(channel, embed)
 
-            except hikari.errors.NotFoundError:
-                await self.removeChannelBlind(channel)
-
-            except hikari.errors.ForbiddenError:
+            except (hikari.errors.NotFoundError, hikari.errors.ForbiddenError):
                 await self.removeChannelBlind(channel)
             
-            except:
+            except: # If error is unexpected it is nice to have it documented.
                 print(traceback.format_exc())
-    
+
+
     async def removeChannelBlind(channel: int) -> None:
         '''Remove channel from array'''
         reload(message_channels)
