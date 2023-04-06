@@ -32,6 +32,33 @@ cmds ="""```md
 Reddit bot: https://reddit.com/user/masterhacker_bot
 Source code: https://github.com/enuf96/redditscraperbot```"""
 
+WatchList = {
+    "iiiiiiitttttttttttt": ["r"],
+    "masterhacker_bot": ["u"]
+}
+
+@bot.listen(hikari.StartedEvent)
+async def on_started(event):
+    for name, array in WatchList.items():
+        Watcher = RedditWatcher(name, array[0], bot)
+        array.append(asyncio.create_task(Watcher.runner()))
+
+    global StatusUpdate
+    StatusUpdate = asyncio.create_task(status_update())
+
+
+@bot.listen(hikari.StoppingEvent)
+async def on_stop(event):
+    try:
+        for _, array in WatchList.items():
+            array[1].cancel()
+
+    except NameError as e:
+        print(e)
+
+    StatusUpdate.cancel()
+
+
 async def status_update() -> None:
     while True:
         _guilds = await bot.rest.fetch_my_guilds()
@@ -82,31 +109,6 @@ async def mentioned(string: str, prefix: str, alias=None) -> bool:
 async def validate(event, cmdName, cmdAlias=None):
     '''Validates the request if it is true or not.'''
     return not event.is_bot and event.content and await mentioned(event.content, cmdName, cmdAlias)
-
-
-@bot.listen(hikari.StartedEvent)
-async def on_started(event):
-    global redditTask
-    global redditItTask
-    global statusupdate_
-    reddit_ = RedditWatcher("https://api.reddit.com/user/masterhacker_bot", "redditID.txt", bot)
-    redditIt_ = RedditWatcher("https://api.reddit.com/r/iiiiiiitttttttttttt/new/", "redditIT_ID.txt", bot)
-
-    statusupdate_ = asyncio.create_task(status_update())
-    redditTask = asyncio.create_task(reddit_.runner())
-    redditItTask = asyncio.create_task(redditIt_.runner())
-
-
-@bot.listen(hikari.StoppingEvent)
-async def on_stop(event):
-    try:
-        redditTask.cancel()
-        redditItTask.cancel()
-
-    except NameError as e:
-        print(e)
-
-    statusupdate_.cancel()
 
 
 @bot.listen(hikari.GuildMessageCreateEvent)

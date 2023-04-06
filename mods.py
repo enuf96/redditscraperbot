@@ -12,18 +12,20 @@ class InvalidRedditType(Exception):
     pass
 
 class RedditWatcher:
-    def __init__(self, url: str, postFileName: str, bot: hikari.GatewayBot):
-        self.postFileName = "ids/" + postFileName
-        self.url = url
+    def __init__(self, name: str, type: str, bot: hikari.GatewayBot):
+        self.name = name
+        self.type = type
         self.bot = bot
         self.headers = { 'User-Agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.175 Safari/537.36" }
 
-        if url.startswith("https://api.reddit.com/user"):
-            self.type = "u"
-        elif url.startswith("https://api.reddit.com/r"):
-            self.type = "r"
+        if type == "r":
+            self.url = "https://api.reddit.com/r/" + name + "/new/"
+        elif type == "u":
+            self.url = "https://api.reddit.com/user/" + name
         else:
             raise InvalidRedditType("The URL is not recognised as a subreddit or an user. Make sure the URL is from the api.")
+        
+        self.postFileName = "ids/" + self.type + "_" + self.name
         
         if not exists(self.postFileName):
             with open(self.postFileName, "w") as f:
