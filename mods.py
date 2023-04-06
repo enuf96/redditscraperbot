@@ -81,7 +81,7 @@ class RedditWatcher:
                 elif self.type == "r":
                     embed = hikari.Embed(
                         title=key_code["title"],
-                        description="from other subreddit.",
+                        description="from r/" + self.name,
                         url="https://reddit.com" + key_code["permalink"],
                         timestamp=ts,
                     )
