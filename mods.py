@@ -13,9 +13,6 @@ class enums(Enum):
     USER = 0
     SUBREDDIT = 1
 
-class InvalidRedditType(Exception):
-    pass
-
 class RedditWatcher:
     def __init__(self, bot: hikari.GatewayBot):
         self.Bot = bot
