@@ -7,38 +7,31 @@ import resource.message_channels as message_channels
 from datetime import datetime, timezone
 from importlib import reload
 from os.path import exists
+from enum import Enum
+
+class enums(Enum):
+    USER = 0
+    SUBREDDIT = 1
 
 class InvalidRedditType(Exception):
     pass
 
 class RedditWatcher:
-    def __init__(self, name: str, type: str, bot: hikari.GatewayBot):
-        self.name = name
-        self.type = type
-        self.bot = bot
-        self.headers = { 'User-Agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.175 Safari/537.36" }
+    def __init__(self, bot: hikari.GatewayBot):
+        self.Bot = bot
+        self.Headers = { 'User-Agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.175 Safari/537.36" }
+        self.WatchList = {
+            "iiiiiiitttttttttttt": enums.SUBREDDIT,
+            "masterhacker_bot": enums.USER
+        }
 
-        if type == "r":
-            self.url = "https://api.reddit.com/r/" + name + "/new/"
-        elif type == "u":
-            self.url = "https://api.reddit.com/user/" + name
-        else:
-            raise InvalidRedditType("The URL is not recognised as a subreddit or an user. Make sure the URL is from the api.")
-        
-        self.postFileName = "ids/" + self.type + "_" + self.name
-        
-        if not exists(self.postFileName):
-            with open(self.postFileName, "w") as f:
-                f.write("")
-
-
-    async def runner(self):
+    async def Runner(self):
         while True:
-            await self.getCurrentPost()
+            await self.GetCurrentPost()
             await asyncio.sleep(15)
 
 
-    async def correctImageKeys(self, apiDict: dict) -> str:
+    async def CorrectImageKeys(self, apiDict: dict) -> str:
         '''Makes sure to get the right thumbnail.'''
         keys = {
             "url": "https://i.redd.it",
@@ -46,73 +39,93 @@ class RedditWatcher:
             "thumbnail": "https://b.thumbs.redditmedia.com"
         }
         
-        for k, v in keys.items():
-            key = apiDict.get(k)
-            if key and key.startswith(v):
+        for url_key, image_domain in keys.items():
+            key = apiDict.get(url_key)
+            if key and key.startswith(image_domain):
                 return key
 
 
-    async def getCurrentPost(self):
-        with open(self.postFileName, "r+") as f:
-            content = f.read()
+    async def GetCurrentPost(self):
+        for Name, Type in self.WatchList.items():
+            # Cooldown
+            await asyncio.sleep(1)
+
+            if Type == enums.SUBREDDIT:
+                TypeVariable = "r"
+                GetUrl = f"https://api.reddit.com/{TypeVariable}/{Name}/new"
+            elif Type == enums.USER:
+                TypeVariable = "user"
+                GetUrl = f"https://api.reddit.com/{TypeVariable}/{Name}/"
+            
+            if not exists(f"ids/{TypeVariable}_{Name}.id"):
+                with open(f"ids/{TypeVariable}_{Name}.id", "w") as f:
+                    f.write("")
+
             try:
-                request = requests.get(self.url, headers=self.headers).json()
-                key_code = request["data"]["children"][0]["data"]
-                ts = datetime.fromtimestamp(key_code["created_utc"], tz=timezone.utc)
+                Response = requests.get(GetUrl, headers=self.Headers).json()
+                KeyCode = Response["data"]["children"][0]["data"]
+                Timestamp = datetime.fromtimestamp(KeyCode["created_utc"], tz=timezone.utc)
 
-                if key_code["id"] == content:
-                    return # Post already posted. 
+                with open(f"ids/{TypeVariable}_{Name}.id", "r+") as f:
+                    Content = f.read()
 
-                if self.type == "u":
-                    body = re.compile(".+?(?=\\n)")       #
-                    body = body.findall(key_code["body"]) ## Make sure to not contain the footer with regex.
-                    body = body[0]                        #
+                    # If already posted, skip
+                    if Content == KeyCode["id"]:
+                        continue
+                    
+                    f.seek(0)
+                    f.write(KeyCode["id"])
+                
+                if Type == enums.USER:
+                    Comment = KeyCode["body"]
+                    if Name == "masterhacker_bot":
+                        Body = re.compile(".+?(?=\\n)") #
+                        Body = Body.findall(Comment)    ## Make sure to not contain the footer with regex.
+                        Comment = Body[0]               #
 
-                    embed = hikari.Embed(
-                        title=key_code["link_title"],
-                        description=body,
-                        url=key_code["link_permalink"],
-                        timestamp=ts,
+                    Embed = hikari.Embed(
+                        title=KeyCode["link_title"],
+                        description=Comment,
+                        url=KeyCode["link_permalink"],
+                        timestamp=Timestamp
                     )
 
-                    if key_code["link_url"].startswith("https://i.redd.it"):
-                        embed.set_image(key_code["link_url"])
+                    # TODO: Probably rewrite this and CorrectImageKeys.
+                    if KeyCode["link_url"].startswith("https://i.redd.it"):
+                        Embed.set_image(KeyCode["link_url"])
 
-                elif self.type == "r":
-                    embed = hikari.Embed(
-                        title=key_code["title"],
-                        description=f"from [r/{self.name}](http://reddit.com/r/{self.name})",
-                        url="https://reddit.com" + key_code["permalink"],
-                        timestamp=ts,
+                elif Type == enums.SUBREDDIT:
+                    Embed = hikari.Embed(
+                        title=KeyCode["title"],
+                        description=f"from [r/{Name}](http://reddit.com/r/{Name})",
+                        url=f"http://reddit.com{KeyCode['permalink']}",
+                        timestamp=Timestamp
                     )
 
-                    if key := await self.correctImageKeys(key_code):
-                        embed.set_image(key)
+                    Image = await self.CorrectImageKeys(KeyCode)
+                    if Image:
+                        Embed.set_image(Image)
 
-                f.seek(0)
-                f.write(key_code["id"])
-
-                await self.sendNewPost(embed)
+                await self.SendNewPost(Embed)
 
             except:
-                print("Exception:\n\n" + traceback.format_exc())
-                await asyncio.sleep(5)
+                print("GetCurrentPost Exception:\n\n" + traceback.format_exc())
     
 
-    async def sendNewPost(self, embed: hikari.embeds.Embed):
+    async def SendNewPost(self, embed: hikari.embeds.Embed):
         reload(message_channels)
         for channel in message_channels.channels:
             try:
-                await self.bot.rest.create_message(channel, embed)
+                await self.Bot.rest.create_message(channel, embed)
 
             except (hikari.errors.NotFoundError, hikari.errors.ForbiddenError):
-                await self.removeChannelBlind(channel)
+                await self.RemoveChannelBlind(channel)
             
             except: # If error is unexpected it is nice to have it documented.
                 print(traceback.format_exc())
 
 
-    async def removeChannelBlind(channel: int) -> None:
+    async def RemoveChannelBlind(channel: int) -> None:
         '''Remove channel from array'''
         reload(message_channels)
         my_list = message_channels.channels

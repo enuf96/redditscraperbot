@@ -8,15 +8,13 @@ from importlib import reload
 from time import monotonic
 from mods import RedditWatcher
 
+# POSIX optimisation from Hikari docs
 if os.name != "nt":
     import uvloop
     uvloop.install()
 
 bot = hikari.GatewayBot(token=tok3n)
 ID = hikari.applications.get_token_id(bot._token)
-# This should be available as soon as the bot has fired the StartingEvent.
-# Isn't needed right now.
-# botUser = bot.get_me()
 
 # Pointless dictionary just append to string
 cmds ="""```md
@@ -32,34 +30,22 @@ cmds ="""```md
 Reddit bot: https://reddit.com/user/masterhacker_bot
 Source code: https://github.com/enuf96/redditscraperbot```"""
 
-WatchList = {
-    "iiiiiiitttttttttttt": ["r"],
-    "masterhacker_bot": ["u"]
-}
-
 @bot.listen(hikari.StartedEvent)
-async def on_started(event):
-    for name, array in WatchList.items():
-        Watcher = RedditWatcher(name, array[0], bot)
-        array.append(asyncio.create_task(Watcher.runner()))
-
+async def On_Started(event):
+    global ActiveWatcher
     global StatusUpdate
-    StatusUpdate = asyncio.create_task(status_update())
+
+    ActiveWatcher = asyncio.create_task(RedditWatcher(bot).Runner())
+    StatusUpdate = asyncio.create_task(Status_Update())
 
 
 @bot.listen(hikari.StoppingEvent)
-async def on_stop(event):
-    try:
-        for _, array in WatchList.items():
-            array[1].cancel()
-
-    except NameError as e:
-        print(e)
-
+async def On_Stop(event):
+    ActiveWatcher.cancel()
     StatusUpdate.cancel()
 
 
-async def status_update() -> None:
+async def Status_Update() -> None:
     while True:
         _guilds = await bot.rest.fetch_my_guilds()
         g_ext, c_ext = "", ""
@@ -82,7 +68,7 @@ async def status_update() -> None:
         
 
 
-async def is_admin(event) -> bool:
+async def Is_Admin(event) -> bool:
     '''Check if user is admin or owner.'''
     guild = event.get_guild()
     userid = event.author_id
@@ -101,22 +87,22 @@ async def is_admin(event) -> bool:
     return False
 
 
-async def mentioned(string: str, prefix: str, alias=None) -> bool:
+async def Mentioned(string: str, prefix: str, alias=None) -> bool:
     '''Check if the bot was mentioned'''
     return string == f"<@!{ID}> {prefix}" or string == f"<@{ID}> {prefix}" or string == f"<@{ID}> {alias}" or string == f"<@{ID}> {alias}"
 
 
-async def validate(event, cmdName, cmdAlias=None):
+async def Validate(event, cmdName, cmdAlias=None):
     '''Validates the request if it is true or not.'''
-    return not event.is_bot and event.content and await mentioned(event.content, cmdName, cmdAlias)
+    return not event.is_bot and event.content and await Mentioned(event.content, cmdName, cmdAlias)
 
 
 @bot.listen(hikari.GuildMessageCreateEvent)
 async def add_channel(event) -> None:
-    if not await validate(event, "add"):
+    if not await Validate(event, "add"):
         return
 
-    if not await is_admin(event):
+    if not await Is_Admin(event):
         return
 
     channel_id = int(event.channel_id)
@@ -136,10 +122,10 @@ async def add_channel(event) -> None:
 
 @bot.listen(hikari.GuildMessageCreateEvent)
 async def remove_channel(event) -> None:
-    if not await validate(event, "remove"):
+    if not await Validate(event, "remove"):
         return
 
-    if not await is_admin(event):
+    if not await Is_Admin(event):
         return
 
     channel_id = int(event.channel_id)
@@ -159,7 +145,7 @@ async def remove_channel(event) -> None:
 
 @bot.listen(hikari.GuildMessageCreateEvent)
 async def ping(event):
-    if not await validate(event, "ping"):
+    if not await Validate(event, "ping"):
         return
 
     start = monotonic()
@@ -176,7 +162,7 @@ async def ping(event):
 
 @bot.listen(hikari.GuildMessageCreateEvent)
 async def about(event):
-    if not await validate(event, "about", "help"):
+    if not await Validate(event, "about", "help"):
         return
 
     await event.message.respond(cmds, reply=True)
