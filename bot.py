@@ -2,7 +2,7 @@ import os
 import hikari
 import asyncio
 import resource.message_channels as message_channels
-from resource.mytoken import tok3n
+from resource.token import token
 from requests import get
 from importlib import reload
 from time import monotonic
@@ -13,7 +13,7 @@ if os.name != "nt":
     import uvloop
     uvloop.install()
 
-bot = hikari.GatewayBot(token=tok3n)
+bot = hikari.GatewayBot(token=token)
 ID = hikari.applications.get_token_id(bot._token)
 
 # Pointless dictionary just append to string
